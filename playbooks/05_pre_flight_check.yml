@@ -1,0 +1,58 @@
+---
+# Use Case 5 - Schritt 1: Pre-Flight Check
+# Prüft Voraussetzungen bevor das Deployment startet
+# Bei Fehler → Workflow bricht ab (kein Deployment)
+- name: "Workflow: Pre-Flight Check"
+  hosts: all
+  gather_facts: true
+
+  vars:
+    min_disk_free_mb: 500
+    min_ram_free_mb: 256
+
+  tasks:
+    - name: Freien Festplattenplatz ermitteln
+      ansible.builtin.shell: df / | tail -1 | awk '{print $4}'
+      register: disk_free_kb
+      changed_when: false
+
+    - name: Disk-Check — mindestens {{ min_disk_free_mb }} MB frei erforderlich
+      ansible.builtin.assert:
+        that:
+          - (disk_free_kb.stdout | int / 1024) >= min_disk_free_mb
+        fail_msg: >
+          FEHLER: Zu wenig Festplattenplatz!
+          Frei: {{ (disk_free_kb.stdout | int / 1024) | int }} MB,
+          Benötigt: {{ min_disk_free_mb }} MB
+        success_msg: "OK: {{ (disk_free_kb.stdout | int / 1024) | int }} MB Speicher frei."
+
+    - name: RAM-Check — mindestens {{ min_ram_free_mb }} MB frei erforderlich
+      ansible.builtin.assert:
+        that:
+          - ansible_memfree_mb >= min_ram_free_mb
+        fail_msg: >
+          FEHLER: Zu wenig freier Arbeitsspeicher!
+          Frei: {{ ansible_memfree_mb }} MB,
+          Benötigt: {{ min_ram_free_mb }} MB
+        success_msg: "OK: {{ ansible_memfree_mb }} MB RAM frei."
+
+    - name: Prüfe ob Port 80 bereits belegt ist
+      ansible.builtin.shell: ss -tlnp | grep ':80 ' || echo "FREI"
+      register: port_check
+      changed_when: false
+
+    - name: Port-Status anzeigen
+      ansible.builtin.debug:
+        msg: "Port 80 Status: {{ 'BELEGT - wird überschrieben' if port_check.stdout != 'FREI' else 'FREI' }}"
+
+    - name: Pre-Flight Check erfolgreich
+      ansible.builtin.debug:
+        msg:
+          - "============================================"
+          - "  PRE-FLIGHT CHECK: ALLE TESTS BESTANDEN"
+          - "============================================"
+          - "Host:     {{ ansible_hostname }}"
+          - "OS:       {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "RAM frei: {{ ansible_memfree_mb }} MB"
+          - "Disk frei:{{ (disk_free_kb.stdout | int / 1024) | int }} MB"
+          - "Deployment kann starten!"

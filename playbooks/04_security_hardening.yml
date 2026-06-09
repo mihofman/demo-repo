@@ -1,0 +1,136 @@
+---
+# Use Case 4: Security Hardening
+# AAP-Features: Check Mode (--check), Diff Mode (--diff), Tags
+# Wichtig: In AAP "Check Mode" aktivieren um nur Änderungen anzuzeigen!
+# Tags: ssh, sysctl, permissions, all
+- name: Security Hardening
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    # -------------------------------------------------------
+    # TAG: ssh — SSH-Konfiguration härten
+    # -------------------------------------------------------
+    - name: SSH - Root-Login deaktivieren
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+        backup: true
+      notify: sshd neuladen
+      tags: [ssh, hardening]
+
+    - name: SSH - Passwort-Authentifizierung deaktivieren
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+        backup: true
+      notify: sshd neuladen
+      tags: [ssh, hardening]
+
+    - name: SSH - Leere Passwörter verbieten
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitEmptyPasswords'
+        line: 'PermitEmptyPasswords no'
+        backup: true
+      notify: sshd neuladen
+      tags: [ssh, hardening]
+
+    - name: SSH - MaxAuthTries setzen
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?MaxAuthTries'
+        line: 'MaxAuthTries 3'
+        backup: true
+      notify: sshd neuladen
+      tags: [ssh, hardening]
+
+    - name: SSH - Idle Timeout setzen (5 Minuten)
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?ClientAliveInterval'
+        line: 'ClientAliveInterval 300'
+        backup: true
+      notify: sshd neuladen
+      tags: [ssh, hardening]
+
+    # -------------------------------------------------------
+    # TAG: sysctl — Kernel-Parameter härten
+    # -------------------------------------------------------
+    - name: Kernel - IP-Forwarding deaktivieren
+      ansible.posix.sysctl:
+        name: net.ipv4.ip_forward
+        value: '0'
+        state: present
+        reload: true
+      tags: [sysctl, hardening]
+
+    - name: Kernel - ICMP Redirects ignorieren
+      ansible.posix.sysctl:
+        name: net.ipv4.conf.all.accept_redirects
+        value: '0'
+        state: present
+        reload: true
+      tags: [sysctl, hardening]
+
+    - name: Kernel - SYN-Cookies aktivieren (DoS-Schutz)
+      ansible.posix.sysctl:
+        name: net.ipv4.tcp_syncookies
+        value: '1'
+        state: present
+        reload: true
+      tags: [sysctl, hardening]
+
+    - name: Kernel - Sysrq deaktivieren
+      ansible.posix.sysctl:
+        name: kernel.sysrq
+        value: '0'
+        state: present
+        reload: true
+      tags: [sysctl, hardening]
+
+    # -------------------------------------------------------
+    # TAG: permissions — Kritische Dateirechte prüfen
+    # -------------------------------------------------------
+    - name: Permissions - /etc/passwd Rechte prüfen
+      ansible.builtin.file:
+        path: /etc/passwd
+        owner: root
+        group: root
+        mode: '0644'
+      tags: [permissions, hardening]
+
+    - name: Permissions - /etc/shadow Rechte prüfen
+      ansible.builtin.file:
+        path: /etc/shadow
+        owner: root
+        group: root
+        mode: '0000'
+      tags: [permissions, hardening]
+
+    - name: Permissions - /etc/sudoers Rechte prüfen
+      ansible.builtin.file:
+        path: /etc/sudoers
+        owner: root
+        group: root
+        mode: '0440'
+      tags: [permissions, hardening]
+
+    - name: Hardening-Zusammenfassung
+      ansible.builtin.debug:
+        msg:
+          - "=== SECURITY HARDENING ABGESCHLOSSEN ==="
+          - "Host:       {{ ansible_hostname }}"
+          - "OS:         {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Check Mode: {{ ansible_check_mode }}"
+          - "Geprüfte Bereiche: SSH-Config, Kernel-Parameter, Dateirechte"
+      tags: [always]
+
+  handlers:
+    - name: sshd neuladen
+      ansible.builtin.service:
+        name: sshd
+        state: reloaded

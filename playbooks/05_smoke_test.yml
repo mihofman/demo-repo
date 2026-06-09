@@ -1,0 +1,52 @@
+---
+# Use Case 5 - Schritt 3: Smoke Test
+# Prüft ob das Deployment funktioniert hat
+# Bei Fehler → Workflow löst Rollback aus
+- name: "Workflow: Smoke Test"
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Warte kurz bis nginx bereit ist
+      ansible.builtin.wait_for:
+        host: localhost
+        port: 80
+        timeout: 15
+        msg: "nginx antwortet nicht auf Port 80!"
+
+    - name: HTTP-Request an Applikation senden
+      ansible.builtin.uri:
+        url: http://localhost
+        method: GET
+        status_code: 200
+        timeout: 10
+      register: http_result
+
+    - name: Prüfe ob Applikation korrekt antwortet
+      ansible.builtin.assert:
+        that:
+          - http_result.status == 200
+          - "'Ansible Automation Platform' in http_result.content | string"
+        fail_msg: "FEHLER: Applikation antwortet nicht wie erwartet! HTTP {{ http_result.status }}"
+        success_msg: "OK: Applikation antwortet korrekt (HTTP 200)."
+
+    - name: nginx-Service Status prüfen
+      ansible.builtin.service_facts:
+
+    - name: nginx Service-Status validieren
+      ansible.builtin.assert:
+        that:
+          - "'nginx' in services"
+          - "services['nginx'].state == 'running'"
+        fail_msg: "FEHLER: nginx-Service läuft nicht!"
+        success_msg: "OK: nginx-Service läuft."
+
+    - name: Smoke Test erfolgreich
+      ansible.builtin.debug:
+        msg:
+          - "============================================"
+          - "  SMOKE TEST: ALLE CHECKS BESTANDEN ✓"
+          - "============================================"
+          - "HTTP Status:   {{ http_result.status }}"
+          - "Response Time: {{ http_result.elapsed }}ms"
+          - "Deployment ist produktionsbereit!"

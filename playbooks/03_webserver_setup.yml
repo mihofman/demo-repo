@@ -1,0 +1,81 @@
+---
+# Use Case 3: Webserver Setup
+# AAP-Features: Jinja2-Templates, Service Management, Survey
+# Survey-Variablen:
+#   server_name: (Freitext, z.B. "demo.example.com")
+#   welcome_message: (Freitext, z.B. "Willkommen zur AAP Demo!")
+#   webserver_action: install | remove
+- name: Webserver Setup
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    webroot: /var/www/html
+    nginx_conf: /etc/nginx/conf.d/demo.conf
+
+  tasks:
+    - name: nginx installieren
+      ansible.builtin.package:
+        name: nginx
+        state: present
+      when: webserver_action == 'install'
+
+    - name: Demo-Webseite aus Template deployen
+      ansible.builtin.template:
+        src: ../templates/index.html.j2
+        dest: "{{ webroot }}/index.html"
+        mode: '0644'
+      notify: nginx neustarten
+      when: webserver_action == 'install'
+
+    - name: nginx Virtual Host konfigurieren
+      ansible.builtin.template:
+        src: ../templates/nginx_vhost.conf.j2
+        dest: "{{ nginx_conf }}"
+        mode: '0644'
+      notify: nginx neustarten
+      when: webserver_action == 'install'
+
+    - name: nginx-Service starten und aktivieren
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+      when: webserver_action == 'install'
+
+    - name: Deployment-Ergebnis anzeigen
+      ansible.builtin.debug:
+        msg:
+          - "=== WEBSERVER DEPLOYMENT ERFOLGREICH ==="
+          - "Server:   {{ server_name }}"
+          - "Webroot:  {{ webroot }}"
+          - "OS:       {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Aufrufbar unter: http://{{ ansible_default_ipv4.address | default('localhost') }}"
+      when: webserver_action == 'install'
+
+    - name: Webserver deinstallieren
+      ansible.builtin.package:
+        name: nginx
+        state: absent
+      when: webserver_action == 'remove'
+
+    - name: Konfigurationsdateien aufräumen
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ nginx_conf }}"
+        - "{{ webroot }}/index.html"
+      when: webserver_action == 'remove'
+
+    - name: Deinstallation bestätigen
+      ansible.builtin.debug:
+        msg: "nginx und alle Konfigurationen wurden entfernt."
+      when: webserver_action == 'remove'
+
+  handlers:
+    - name: nginx neustarten
+      ansible.builtin.service:
+        name: nginx
+        state: restarted

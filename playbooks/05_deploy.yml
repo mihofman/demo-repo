@@ -1,0 +1,80 @@
+---
+# Use Case 5 - Schritt 2: Deploy
+# Installiert nginx und deployt die Demo-Applikation
+# Survey-Variable: app_version (z.B. "1.0", "2.0-beta")
+- name: "Workflow: Deploy Demo Application"
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    webroot: /var/www/html
+    app_version: "{{ app_version | default('1.0') }}"
+    deploy_timestamp: "{{ ansible_date_time.iso8601 }}"
+
+  tasks:
+    - name: nginx installieren
+      ansible.builtin.package:
+        name: nginx
+        state: present
+
+    - name: Backup des aktuellen Webroot erstellen
+      ansible.builtin.copy:
+        src: "{{ webroot }}/index.html"
+        dest: "{{ webroot }}/index.html.bak"
+        remote_src: true
+      failed_when: false
+      changed_when: false
+
+    - name: App-Version in Datei speichern (für Rollback)
+      ansible.builtin.copy:
+        dest: /tmp/aap_demo_deployed_version
+        content: "{{ app_version }}\n"
+        mode: '0644'
+
+    - name: Demo-Applikation deployen
+      ansible.builtin.copy:
+        dest: "{{ webroot }}/index.html"
+        content: |
+          <!DOCTYPE html>
+          <html lang="de">
+          <head>
+            <meta charset="UTF-8">
+            <title>AAP Demo App v{{ app_version }}</title>
+            <style>
+              body { font-family: Arial, sans-serif; background: #1a1a2e; color: #eee; text-align: center; padding: 50px; }
+              h1 { color: #00d4aa; font-size: 3em; }
+              .badge { background: #e94560; padding: 5px 15px; border-radius: 20px; font-size: 1.2em; }
+              .info { background: #16213e; padding: 20px; border-radius: 10px; margin: 20px auto; max-width: 600px; }
+              .info p { margin: 8px 0; }
+            </style>
+          </head>
+          <body>
+            <h1>Ansible Automation Platform</h1>
+            <p><span class="badge">Version {{ app_version }}</span></p>
+            <div class="info">
+              <p><strong>Host:</strong> {{ ansible_hostname }}</p>
+              <p><strong>OS:</strong> {{ ansible_distribution }} {{ ansible_distribution_version }}</p>
+              <p><strong>Deployed:</strong> {{ deploy_timestamp }}</p>
+              <p><strong>Deployed by:</strong> Ansible Automation Platform 2.6</p>
+            </div>
+            <p>Deployment via Workflow Job Template — automatisiert, reproduzierbar, auditiert.</p>
+          </body>
+          </html>
+        mode: '0644'
+
+    - name: nginx starten und aktivieren
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+
+    - name: Deployment abgeschlossen
+      ansible.builtin.debug:
+        msg:
+          - "============================================"
+          - "  DEPLOYMENT ERFOLGREICH"
+          - "============================================"
+          - "App-Version: {{ app_version }}"
+          - "Deployed:    {{ deploy_timestamp }}"
+          - "URL:         http://{{ ansible_default_ipv4.address | default('localhost') }}"

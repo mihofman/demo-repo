@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ server_name }} — AAP Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #eee;
+    }
+    .card {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 50px 60px;
+      text-align: center;
+      max-width: 700px;
+      width: 90%;
+    }
+    .logo { font-size: 3em; margin-bottom: 10px; }
+    h1 { color: #00d4aa; font-size: 2.2em; margin-bottom: 10px; }
+    .subtitle { color: #aaa; font-size: 1.1em; margin-bottom: 30px; }
+    .welcome {
+      background: rgba(0, 212, 170, 0.1);
+      border-left: 4px solid #00d4aa;
+      padding: 15px 20px;
+      border-radius: 8px;
+      font-size: 1.3em;
+      margin-bottom: 30px;
+      color: #fff;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .info-item {
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .info-item .label { color: #888; font-size: 0.85em; text-transform: uppercase; margin-bottom: 4px; }
+    .info-item .value { color: #00d4aa; font-weight: bold; }
+    .footer { margin-top: 30px; color: #666; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">⚙️</div>
+    <h1>Ansible Automation Platform</h1>
+    <p class="subtitle">Deployed by AAP 2.6 — Automated, Repeatable, Audited</p>
+    <div class="welcome">{{ welcome_message }}</div>
+    <div class="info-grid">
+      <div class="info-item">
+        <div class="label">Server</div>
+        <div class="value">{{ server_name }}</div>
+      </div>
+      <div class="info-item">
+        <div class="label">Hostname</div>
+        <div class="value">{{ ansible_hostname }}</div>
+      </div>
+      <div class="info-item">
+        <div class="label">OS</div>
+        <div class="value">{{ ansible_distribution }} {{ ansible_distribution_version }}</div>
+      </div>
+      <div class="info-item">
+        <div class="label">Deployed</div>
+        <div class="value">{{ ansible_date_time.date }}</div>
+      </div>
+    </div>
+    <p class="footer">Automatisiert mit Ansible Automation Platform 2.6 — Red Hat</p>
+  </div>
+</body>
+</html>

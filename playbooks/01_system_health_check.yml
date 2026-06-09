@@ -1,0 +1,57 @@
+---
+# Use Case 1: System Health Check
+# AAP-Features: Survey, Fact Cache, strukturierte Ausgabe
+# Survey-Variablen: check_scope (cpu / memory / disk / all)
+- name: System Health Check
+  hosts: all
+  gather_facts: true
+
+  tasks:
+    - name: CPU-Auslastung ermitteln
+      ansible.builtin.shell: |
+        top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1
+      register: cpu_usage
+      changed_when: false
+      when: check_scope in ['cpu', 'all']
+
+    - name: CPU-Ergebnis anzeigen
+      ansible.builtin.debug:
+        msg: "CPU-Auslastung: {{ cpu_usage.stdout | default('n/a') }}%"
+      when: check_scope in ['cpu', 'all']
+
+    - name: Arbeitsspeicher anzeigen
+      ansible.builtin.debug:
+        msg: >
+          RAM gesamt: {{ (ansible_memtotal_mb / 1024) | round(1) }} GB |
+          RAM frei: {{ (ansible_memfree_mb / 1024) | round(1) }} GB |
+          RAM belegt: {{ (((ansible_memtotal_mb - ansible_memfree_mb) / ansible_memtotal_mb) * 100) | round(1) }}%
+      when: check_scope in ['memory', 'all']
+
+    - name: Festplattennutzung ermitteln
+      ansible.builtin.shell: df -h / | tail -1 | awk '{print $2, $3, $4, $5}'
+      register: disk_usage
+      changed_when: false
+      when: check_scope in ['disk', 'all']
+
+    - name: Festplatten-Ergebnis anzeigen
+      ansible.builtin.debug:
+        msg: "Disk /: Gesamt={{ disk_usage.stdout.split()[0] }} | Belegt={{ disk_usage.stdout.split()[1] }} | Frei={{ disk_usage.stdout.split()[2] }} | Auslastung={{ disk_usage.stdout.split()[3] }}"
+      when:
+        - check_scope in ['disk', 'all']
+        - disk_usage.stdout is defined
+
+    - name: Systeminformationen anzeigen
+      ansible.builtin.debug:
+        msg:
+          - "=== SYSTEM HEALTH CHECK ERGEBNIS ==="
+          - "Hostname:        {{ ansible_hostname }}"
+          - "OS:              {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Kernel:          {{ ansible_kernel }}"
+          - "Architektur:     {{ ansible_architecture }}"
+          - "CPU-Kerne:       {{ ansible_processor_vcpus }}"
+          - "Uptime (min):    {{ (ansible_uptime_seconds / 60) | int }}"
+      when: check_scope == 'all'
+
+    - name: Health Check abgeschlossen
+      ansible.builtin.debug:
+        msg: "Health Check fuer Scope '{{ check_scope }}' erfolgreich abgeschlossen."

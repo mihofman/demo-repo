@@ -1,0 +1,61 @@
+---
+# Use Case 5 - Schritt 4: Rollback
+# Wird automatisch ausgeführt wenn der Smoke Test fehlschlägt
+# Stellt den letzten funktionierenden Stand wieder her
+- name: "Workflow: Rollback"
+  hosts: all
+  become: true
+  gather_facts: false
+
+  vars:
+    webroot: /var/www/html
+
+  tasks:
+    - name: Rollback gestartet — Benachrichtigung
+      ansible.builtin.debug:
+        msg:
+          - "============================================"
+          - "  ROLLBACK WIRD EINGELEITET"
+          - "  Smoke Test ist fehlgeschlagen!"
+          - "============================================"
+
+    - name: Backup-Datei vorhanden?
+      ansible.builtin.stat:
+        path: "{{ webroot }}/index.html.bak"
+      register: backup_exists
+
+    - name: Backup wiederherstellen
+      ansible.builtin.copy:
+        src: "{{ webroot }}/index.html.bak"
+        dest: "{{ webroot }}/index.html"
+        remote_src: true
+      when: backup_exists.stat.exists
+
+    - name: Keine Backup-Datei vorhanden — Fallback-Seite deployen
+      ansible.builtin.copy:
+        dest: "{{ webroot }}/index.html"
+        content: |
+          <!DOCTYPE html>
+          <html>
+          <head><title>Maintenance</title></head>
+          <body style="font-family:Arial;text-align:center;padding:50px;">
+            <h1>Wartungsmodus</h1>
+            <p>Das System befindet sich im Wartungsmodus. Bitte versuchen Sie es später erneut.</p>
+          </body>
+          </html>
+        mode: '0644'
+      when: not backup_exists.stat.exists
+
+    - name: nginx neu starten
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+
+    - name: Rollback-Ergebnis
+      ansible.builtin.debug:
+        msg:
+          - "============================================"
+          - "  ROLLBACK ABGESCHLOSSEN"
+          - "============================================"
+          - "Status: {{ 'Vorherige Version wiederhergestellt' if backup_exists.stat.exists else 'Fallback-Seite aktiv' }}"
+          - "Bitte Deployment-Konfiguration prüfen und erneut versuchen."

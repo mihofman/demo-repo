@@ -1,0 +1,77 @@
+---
+# Use Case 2: User Management
+# AAP-Features: Survey mit Dropdown + Text, become, Idempotenz
+# Survey-Variablen:
+#   user_action: create | delete
+#   username: (Freitext)
+#   user_comment: (Freitext, z.B. "Demo User")
+#   grant_sudo: yes | no
+- name: User Management
+  hosts: all
+  become: true
+  gather_facts: false
+
+  vars:
+    sudo_file: "/etc/sudoers.d/{{ username }}"
+
+  tasks:
+    - name: Eingaben validieren
+      ansible.builtin.assert:
+        that:
+          - username is defined
+          - username | length > 0
+          - username is match('^[a-z_][a-z0-9_-]*$')
+        fail_msg: "Ungültiger Benutzername: '{{ username }}'. Nur Kleinbuchstaben, Zahlen, _ und - erlaubt."
+
+    - name: Benutzer anlegen
+      ansible.builtin.user:
+        name: "{{ username }}"
+        comment: "{{ user_comment | default('AAP Demo User') }}"
+        shell: /bin/bash
+        create_home: true
+        state: present
+      when: user_action == 'create'
+
+    - name: Sudo-Rechte vergeben
+      ansible.builtin.copy:
+        dest: "{{ sudo_file }}"
+        content: "{{ username }} ALL=(ALL) NOPASSWD:ALL\n"
+        mode: '0440'
+        validate: /usr/sbin/visudo -cf %s
+      when:
+        - user_action == 'create'
+        - grant_sudo == 'yes'
+
+    - name: Sudo-Rechte entziehen (falls vorhanden)
+      ansible.builtin.file:
+        path: "{{ sudo_file }}"
+        state: absent
+      when:
+        - user_action == 'create'
+        - grant_sudo == 'no'
+
+    - name: Ergebnis anzeigen (create)
+      ansible.builtin.debug:
+        msg:
+          - "Benutzer '{{ username }}' wurde erfolgreich angelegt."
+          - "Sudo-Rechte: {{ grant_sudo }}"
+          - "Home-Verzeichnis: /home/{{ username }}"
+      when: user_action == 'create'
+
+    - name: Benutzer loeschen
+      ansible.builtin.user:
+        name: "{{ username }}"
+        state: absent
+        remove: true
+      when: user_action == 'delete'
+
+    - name: Sudo-Datei bei Loeschung entfernen
+      ansible.builtin.file:
+        path: "{{ sudo_file }}"
+        state: absent
+      when: user_action == 'delete'
+
+    - name: Ergebnis anzeigen (delete)
+      ansible.builtin.debug:
+        msg: "Benutzer '{{ username }}' und zugehoerige Daten wurden geloescht."
+      when: user_action == 'delete'
